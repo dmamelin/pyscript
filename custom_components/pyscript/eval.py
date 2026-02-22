@@ -1385,16 +1385,7 @@ class AstEval:
                     val_idx += 1
         elif isinstance(lhs, ast.Subscript):
             var = await self.aeval(lhs.value)
-            if isinstance(lhs.slice, ast.Index):
-                ind = await self.aeval(lhs.slice.value)
-                var[ind] = val
-            elif isinstance(lhs.slice, ast.Slice):
-                lower = await self.aeval(lhs.slice.lower) if lhs.slice.lower else None
-                upper = await self.aeval(lhs.slice.upper) if lhs.slice.upper else None
-                step = await self.aeval(lhs.slice.step) if lhs.slice.step else None
-                var[slice(lower, upper, step)] = val
-            else:
-                var[await self.aeval(lhs.slice)] = val
+            var[await self.aeval(lhs.slice)] = val
         else:
             var_name = await self.aeval(lhs)
             if isinstance(var_name, EvalAttrSet):
@@ -1455,21 +1446,7 @@ class AstEval:
         for arg1 in arg.targets:
             if isinstance(arg1, ast.Subscript):
                 var = await self.aeval(arg1.value)
-                if isinstance(arg1.slice, ast.Index):
-                    ind = await self.aeval(arg1.slice.value)
-                    for elt in ind if isinstance(ind, list) else [ind]:
-                        del var[elt]
-                elif isinstance(arg1.slice, ast.Slice):
-                    lower, upper, step = None, None, None
-                    if arg1.slice.lower:
-                        lower = await self.aeval(arg1.slice.lower)
-                    if arg1.slice.upper:
-                        upper = await self.aeval(arg1.slice.upper)
-                    if arg1.slice.step:
-                        step = await self.aeval(arg1.slice.step)
-                    del var[slice(lower, upper, step)]
-                else:
-                    del var[await self.aeval(arg1.slice)]
+                del var[await self.aeval(arg1.slice)]
             elif isinstance(arg1, ast.Name):
                 if self.curr_func and arg1.id in self.curr_func.global_names:
                     if arg1.id in self.global_sym_table:
@@ -1857,13 +1834,6 @@ class AstEval:
         """Evaluate subscript."""
         var = await self.aeval(arg.value)
         if isinstance(arg.ctx, ast.Load):
-            if isinstance(arg.slice, ast.Index):
-                return var[await self.aeval(arg.slice)]
-            if isinstance(arg.slice, ast.Slice):
-                lower = (await self.aeval(arg.slice.lower)) if arg.slice.lower else None
-                upper = (await self.aeval(arg.slice.upper)) if arg.slice.upper else None
-                step = (await self.aeval(arg.slice.step)) if arg.slice.step else None
-                return var[slice(lower, upper, step)]
             return var[await self.aeval(arg.slice)]
         return None
 
@@ -1873,7 +1843,10 @@ class AstEval:
 
     async def ast_slice(self, arg):
         """Evaluate slice."""
-        return await self.aeval(arg.value)
+        lower = (await self.aeval(arg.lower)) if arg.lower else None
+        upper = (await self.aeval(arg.upper)) if arg.upper else None
+        step = (await self.aeval(arg.step)) if arg.step else None
+        return slice(lower, upper, step)
 
     async def ast_call(self, arg):
         """Evaluate function call."""
